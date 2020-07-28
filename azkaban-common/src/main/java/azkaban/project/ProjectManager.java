@@ -46,7 +46,9 @@ import javax.inject.Singleton;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-
+/**
+ * 包含了project页面的一些button内容，比如创建工程、修改工程、上传工程、搜索工程等功能点
+ */
 @Singleton
 public class ProjectManager {
 
