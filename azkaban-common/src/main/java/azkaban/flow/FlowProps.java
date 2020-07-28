@@ -34,6 +34,9 @@ public class FlowProps {
      *
      * Using intern() eliminates all the duplicate values, thereby significantly reducing heap
      * memory usage.
+     * s.intern()方法的时候，会将共享池中的字符串与外部的字符串(s)进行比较,如果共享池中有与之相等 的字符串，
+     * 则不会将外部的字符串放到共享池中的，返回的只是共享池中的字符串，如果不同则将外部字符串放入共享池中，
+     * 并返回其字符串的句柄（引用）-- 这样做的好处就是能够节约空间
      */
     if(parentSource != null) {
       this.parentSource = parentSource.intern();
