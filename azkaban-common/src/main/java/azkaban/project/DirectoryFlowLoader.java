@@ -54,7 +54,7 @@ public class DirectoryFlowLoader implements FlowLoader {
   private final Map<String, Flow> flowMap = new HashMap<>();
   private HashSet<String> rootNodes;
   private HashMap<String, Node> nodeMap;
-  private HashMap<String, Map<String, Edge>> nodeDependencies;
+  private HashMap<String, Map<String, Edge>> nodeDependencies;// 保存依赖的信息，<nodeId2,<nodeId1,(nodeId1->nodeId2)>>
   private HashMap<String, Props> jobPropsMap;
 
   // Flow dependencies for embedded flows.
@@ -112,19 +112,17 @@ public class DirectoryFlowLoader implements FlowLoader {
   }
 
   /**
-   * Loads all project flows from the directory.
-   *
-   * @param project The project.
-   * @param projectDir The directory to load flows from.
-   * @return the validation report.
+   * 加载指定目录下工程的所有任务流,这是解析依赖并创建flow的核心方法
+   * @param project 该工程的javaBean信息
+   * @param projectDir zip包保存的路径地址
    */
   @Override
   public ValidationReport loadProjectFlow(final Project project, final File projectDir) {
     this.propsList = new ArrayList<>();
     this.flowPropsList = new ArrayList<>();
-    this.jobPropsMap = new HashMap<>();
-    this.nodeMap = new HashMap<>();
-    this.duplicateJobs = new HashSet<>();
+    this.jobPropsMap = new HashMap<>();// <jobName,jobContent>存储的job文件信息
+    this.nodeMap = new HashMap<>();// <jobName,jobNode>存储的节点信息
+    this.duplicateJobs = new HashSet<>();// 存储的提出重复名后的jobName
     this.nodeDependencies = new HashMap<>();
     this.rootNodes = new HashSet<>();
     this.flowDependencies = new HashMap<>();
@@ -147,10 +145,12 @@ public class DirectoryFlowLoader implements FlowLoader {
 
   }
 
+  // 加载zip包下面的文件信息，开始解析
   private void loadProjectFromDir(final String base, final File dir, Props parent) {
-    final File[] propertyFiles = dir.listFiles(new SuffixFilter(PROPERTY_SUFFIX));
+    final File[] propertyFiles = dir.listFiles(new SuffixFilter(PROPERTY_SUFFIX));//可能会有文件层级，需要递归遍历
     Arrays.sort(propertyFiles);
 
+    //
     for (final File file : propertyFiles) {
       final String relative = getRelativeFilePath(base, file.getPath());
       try {
@@ -168,7 +168,7 @@ public class DirectoryFlowLoader implements FlowLoader {
       this.propsList.add(parent);
     }
 
-    // Load all Job files. If there's a duplicate name, then we don't load
+    // 加载所有的job文件，名称重复的只保存一个
     final File[] jobFiles = dir.listFiles(new SuffixFilter(JOB_SUFFIX));
     for (final File file : jobFiles) {
       final String jobName = getNameWithoutExtension(file);
@@ -184,6 +184,7 @@ public class DirectoryFlowLoader implements FlowLoader {
             final String relative = getRelativeFilePath(base, file.getPath());
             prop.setSource(relative);
 
+            // 为每一个job文件创建一个节点，也就是flow中的依赖节点
             final Node node = new Node(jobName);
             final String type = prop.getString("type", null);
             if (type == null) {
@@ -265,6 +266,7 @@ public class DirectoryFlowLoader implements FlowLoader {
         continue;
       }
 
+      // 针对flow中的每一个node开始解析依赖的信息，可能会有多个依赖
       final List<String> dependencyList =
           props.getStringList(CommonJobProperties.DEPENDENCIES,
               (List<String>) null);
@@ -280,7 +282,7 @@ public class DirectoryFlowLoader implements FlowLoader {
             if (dependencyName == null || dependencyName.isEmpty()) {
               continue;
             }
-
+            // Edge存储<node1Name,node2>,表示的是node2依赖node1的执行
             final Edge edge = new Edge(dependencyName, node.getId());
             final Node dependencyNode = this.nodeMap.get(dependencyName);
             if (dependencyNode == null) {
@@ -313,6 +315,9 @@ public class DirectoryFlowLoader implements FlowLoader {
     }
   }
 
+  /**
+   *
+   */
   private void buildFlowsFromDependencies() {
     // Find all root nodes by finding ones without dependents.
     final HashSet<String> nonRootNodes = new HashSet<>();
@@ -322,7 +327,7 @@ public class DirectoryFlowLoader implements FlowLoader {
       }
     }
 
-    // Now create flows. Bad flows are marked invalid
+    // 现在开始创建flow，如果是不太合适的flow就会标记为无效
     for (final Node base : this.nodeMap.values()) {
       // Root nodes can be discovered when parsing jobs
       if (this.rootNodes.contains(base.getId())
@@ -331,6 +336,7 @@ public class DirectoryFlowLoader implements FlowLoader {
         final Flow flow = new Flow(base.getId());
         final Props jobProp = this.jobPropsMap.get(base.getId());
 
+        // 加载flow以及rootNode的脚本信息到Flow加载器,请注意rootNode是flow中的endNode而不是执行的起点
         FlowLoaderUtils.addEmailPropsToFlow(flow, jobProp);
 
         flow.addAllFlowProperties(this.flowPropsList);
